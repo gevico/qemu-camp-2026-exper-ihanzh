@@ -26,9 +26,14 @@
 static uint64_t gpgpu_ctrl_read(void *opaque, hwaddr addr, unsigned size)
 {
     (void)opaque;
-    (void)addr;
-    (void)size;
-    return 0;
+    switch (addr) {
+    case GPGPU_REG_DEV_ID:
+        return GPGPU_DEV_ID_VALUE;
+    case GPGPU_REG_DEV_VERSION:
+        return GPGPU_DEV_VERSION_VALUE;
+    default:
+        return 0;
+    }
 }
 
 /* TODO: Implement MMIO control register write */
@@ -135,31 +140,26 @@ static void gpgpu_realize(PCIDevice *pdev, Error **errp)
     /* BAR 0: control registers */
     memory_region_init_io(&s->ctrl_mmio, OBJECT(s), &gpgpu_ctrl_ops, s,
                           "gpgpu-ctrl", GPGPU_CTRL_BAR_SIZE);
-    pci_register_bar(pdev, 0,
-                     PCI_BASE_ADDRESS_SPACE_MEMORY |
-                     PCI_BASE_ADDRESS_MEM_TYPE_64,
-                     &s->ctrl_mmio);
+    pci_register_bar(
+        pdev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY | PCI_BASE_ADDRESS_MEM_TYPE_64,
+        &s->ctrl_mmio);
 
     /* BAR 2: VRAM */
-    memory_region_init_io(&s->vram, OBJECT(s), &gpgpu_vram_ops, s,
-                          "gpgpu-vram", s->vram_size);
+    memory_region_init_io(&s->vram, OBJECT(s), &gpgpu_vram_ops, s, "gpgpu-vram",
+                          s->vram_size);
     pci_register_bar(pdev, 2,
                      PCI_BASE_ADDRESS_SPACE_MEMORY |
-                     PCI_BASE_ADDRESS_MEM_TYPE_64 |
-                     PCI_BASE_ADDRESS_MEM_PREFETCH,
+                         PCI_BASE_ADDRESS_MEM_TYPE_64 |
+                         PCI_BASE_ADDRESS_MEM_PREFETCH,
                      &s->vram);
 
     /* BAR 4: doorbell registers */
     memory_region_init_io(&s->doorbell_mmio, OBJECT(s), &gpgpu_doorbell_ops, s,
                           "gpgpu-doorbell", GPGPU_DOORBELL_BAR_SIZE);
-    pci_register_bar(pdev, 4,
-                     PCI_BASE_ADDRESS_SPACE_MEMORY,
-                     &s->doorbell_mmio);
+    pci_register_bar(pdev, 4, PCI_BASE_ADDRESS_SPACE_MEMORY, &s->doorbell_mmio);
 
-    if (msix_init(pdev, GPGPU_MSIX_VECTORS,
-                  &s->ctrl_mmio, 0, 0xFE000,
-                  &s->ctrl_mmio, 0, 0xFF000,
-                  0, errp)) {
+    if (msix_init(pdev, GPGPU_MSIX_VECTORS, &s->ctrl_mmio, 0, 0xFE000,
+                  &s->ctrl_mmio, 0, 0xFF000, 0, errp)) {
         g_free(s->vram_ptr);
         return;
     }
@@ -167,8 +167,8 @@ static void gpgpu_realize(PCIDevice *pdev, Error **errp)
     msi_init(pdev, 0, 1, true, false, errp);
 
     s->dma_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, gpgpu_dma_complete, s);
-    s->kernel_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL,
-                                   gpgpu_kernel_complete, s);
+    s->kernel_timer =
+        timer_new_ms(QEMU_CLOCK_VIRTUAL, gpgpu_kernel_complete, s);
 
     s->global_status = GPGPU_STATUS_READY;
 }
@@ -204,8 +204,7 @@ static void gpgpu_reset(DeviceState *dev)
 }
 
 static const Property gpgpu_properties[] = {
-    DEFINE_PROP_UINT32("num_cus", GPGPUState, num_cus,
-                       GPGPU_DEFAULT_NUM_CUS),
+    DEFINE_PROP_UINT32("num_cus", GPGPUState, num_cus, GPGPU_DEFAULT_NUM_CUS),
     DEFINE_PROP_UINT32("warps_per_cu", GPGPUState, warps_per_cu,
                        GPGPU_DEFAULT_WARPS_PER_CU),
     DEFINE_PROP_UINT32("warp_size", GPGPUState, warp_size,
@@ -218,15 +217,14 @@ static const VMStateDescription vmstate_gpgpu = {
     .name = "gpgpu",
     .version_id = 1,
     .minimum_version_id = 1,
-    .fields = (const VMStateField[]) {
-        VMSTATE_PCI_DEVICE(parent_obj, GPGPUState),
-        VMSTATE_UINT32(global_ctrl, GPGPUState),
-        VMSTATE_UINT32(global_status, GPGPUState),
-        VMSTATE_UINT32(error_status, GPGPUState),
-        VMSTATE_UINT32(irq_enable, GPGPUState),
-        VMSTATE_UINT32(irq_status, GPGPUState),
-        VMSTATE_END_OF_LIST()
-    }
+    .fields =
+        (const VMStateField[]){ VMSTATE_PCI_DEVICE(parent_obj, GPGPUState),
+                                VMSTATE_UINT32(global_ctrl, GPGPUState),
+                                VMSTATE_UINT32(global_status, GPGPUState),
+                                VMSTATE_UINT32(error_status, GPGPUState),
+                                VMSTATE_UINT32(irq_enable, GPGPUState),
+                                VMSTATE_UINT32(irq_status, GPGPUState),
+                                VMSTATE_END_OF_LIST() }
 };
 
 static void gpgpu_class_init(ObjectClass *klass, const void *data)
@@ -249,14 +247,11 @@ static void gpgpu_class_init(ObjectClass *klass, const void *data)
 }
 
 static const TypeInfo gpgpu_type_info = {
-    .name          = TYPE_GPGPU,
-    .parent        = TYPE_PCI_DEVICE,
+    .name = TYPE_GPGPU,
+    .parent = TYPE_PCI_DEVICE,
     .instance_size = sizeof(GPGPUState),
-    .class_init    = gpgpu_class_init,
-    .interfaces    = (InterfaceInfo[]) {
-        { INTERFACE_PCIE_DEVICE },
-        { }
-    },
+    .class_init = gpgpu_class_init,
+    .interfaces = (InterfaceInfo[]){ { INTERFACE_PCIE_DEVICE }, {} },
 };
 
 static void gpgpu_register_types(void)
