@@ -126,6 +126,19 @@ static void gpgpu_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
     case GPGPU_REG_BLOCK_DIM_Z:
         s->kernel.block_dim[2] = val;
         break;
+    case GPGPU_REG_KERNEL_ADDR_LO:
+        s->kernel.kernel_addr =
+            (s->kernel.kernel_addr & ~(0xffffffffULL)) | (val & 0xffffffffULL);
+        break;
+    case GPGPU_REG_KERNEL_ADDR_HI:
+        s->kernel.kernel_addr = (s->kernel.kernel_addr & 0xffffffffULL) |
+                                ((uint64_t)(val & 0xffffffffULL) << 32);
+        break;
+    case GPGPU_REG_DISPATCH:
+        s->global_status &= ~GPGPU_STATUS_READY; /* 设备变为忙碌状态 */
+        gpgpu_core_exec_kernel(s);
+        s->global_status |= GPGPU_STATUS_READY; /* 执行完成，设备变为就绪状态 */
+        break;
     case GPGPU_REG_DMA_SRC_LO:
         s->dma.src_addr =
             (s->dma.src_addr & ~(0xffffffffULL)) | (val & 0xffffffff);
