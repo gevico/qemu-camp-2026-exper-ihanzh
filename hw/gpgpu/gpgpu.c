@@ -165,7 +165,7 @@ static void gpgpu_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
         s->simt.thread_id[0] = val;
         break;
     case GPGPU_REG_THREAD_ID_Y:
-        s->simt.thread_id[2] = val;
+        s->simt.thread_id[1] = val;
         break;
     case GPGPU_REG_THREAD_ID_Z:
         s->simt.thread_id[2] = val;
