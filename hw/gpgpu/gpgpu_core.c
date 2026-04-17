@@ -101,6 +101,57 @@ static inline int32_t sign_extend(uint32_t value, int bits)
     return (int32_t)(value << shift) >> shift;
 }
 
+static inline float uint32_to_float(uint32_t value)
+{
+    union {
+        uint32_t u;
+        float f;
+    } conv = { .u = value };
+    return conv.f;
+}
+
+static inline uint32_t float_to_uint32(float value)
+{
+    union {
+        float f;
+        uint32_t u;
+    } conv = { .f = value };
+    return conv.u;
+}
+
+static inline float4_e2m1 float32_to_float4_e2m1(uint32_t value,
+                                                 float_status *status)
+{
+    float f = uint32_to_float(value);
+    if (isnan(f)) {
+        return (float4_e2m1)0x7u; /* quiet NaN not fully defined here */
+    }
+
+    bool neg = signbit(f);
+    float af = fabsf(f);
+    uint32_t bits;
+
+    if (af < 0.25f) {
+        bits = 0x0u; /* zero */
+    } else if (af < 0.75f) {
+        bits = 0x1u; /* 0.5 */
+    } else if (af < 1.25f) {
+        bits = 0x2u; /* 1.0 */
+    } else if (af < 1.75f) {
+        bits = 0x3u; /* 1.5 */
+    } else if (af < 2.5f) {
+        bits = 0x4u; /* 2.0 */
+    } else if (af < 3.5f) {
+        bits = 0x5u; /* 3.0 */
+    } else if (af < 5.0f) {
+        bits = 0x6u; /* 4.0 */
+    } else {
+        bits = 0x7u; /* 6.0 saturate */
+    }
+
+    return (float4_e2m1)(bits | (neg ? 0x8u : 0));
+}
+
 static inline int32_t imm_i(uint32_t inst)
 {
     return sign_extend(inst >> 20, 12);
@@ -140,17 +191,20 @@ static void decode(GPGPUState *s, GPGPULane *lane, uint32_t inst)
     uint32_t opcode = inst & 0x7f;
     uint32_t rd = extract_bits(inst, 11, 7);
     uint32_t funct3 = extract_bits(inst, 14, 12);
+    // uint32_t rm = extract_bits(inst, 14, 12);
     uint32_t rs1 = extract_bits(inst, 19, 15);
     uint32_t rs2 = extract_bits(inst, 24, 20);
     uint32_t rs3 = extract_bits(inst, 31, 27);
-    // uint32_t funct2 = extract_bits(inst, 26, 25);
     uint32_t funct7 = extract_bits(inst, 31, 25);
     uint32_t next_pc = lane->pc + 4;
     uint32_t src1 = lane->gpr[rs1];
     uint32_t src2 = lane->gpr[rs2];
-    float fsrc1 = (float)lane->fpr[rs1];
-    float fsrc2 = (float)lane->fpr[rs2];
-    float fsrc3 = (float)lane->fpr[rs3];
+    uint32_t fsrc1_bits = lane->fpr[rs1];
+    uint32_t fsrc2_bits = lane->fpr[rs2];
+    uint32_t fsrc3_bits = lane->fpr[rs3];
+    float fsrc1 = uint32_to_float(fsrc1_bits);
+    float fsrc2 = uint32_to_float(fsrc2_bits);
+    float fsrc3 = uint32_to_float(fsrc3_bits);
     const char *opname = "unknown";
     uint32_t op_imm = 0;
     uint32_t result = 0;
@@ -402,44 +456,37 @@ static void decode(GPGPUState *s, GPGPULane *lane, uint32_t inst)
         switch (funct7) {
         case 0x00:
             opname = "FADD.S";
-            F(rd) = fsrc1 + fsrc2;
+            F(rd) = float_to_uint32(fsrc1 + fsrc2);
             break;
         case 0x04:
             opname = "FSUB.S";
-            F(rd) = fsrc1 - fsrc2;
+            F(rd) = float_to_uint32(fsrc1 - fsrc2);
             break;
         case 0x08:
             opname = "FMUL.S";
-            F(rd) = fsrc1 * fsrc2;
+            F(rd) = float_to_uint32(fsrc1 * fsrc2);
             break;
         case 0x0c:
             opname = "FDIV.S";
-            F(rd) = fsrc1 / fsrc2;
+            F(rd) = float_to_uint32(fsrc1 / fsrc2);
             break;
         case 0x2c:
             if (rs2 == 0) {
                 opname = "FSORT.S"; // computes the square root of rs1
-                F(rd) = sqrtf(fsrc1);
+                F(rd) = float_to_uint32(sqrtf(fsrc1));
                 break;
             }
             break;
         case 0x10:
             if (funct3 == 0x0) {
                 opname = "FSGNJ.S";
-                F(rd) =
-                    (fsrc1 * ((fsrc2 >= 0) ? 1 : -1)); /* Copy sign of fsrc2 */
+                F(rd) = (fsrc1_bits & 0x7fffffff) | (fsrc2_bits & 0x80000000u);
             } else if (funct3 == 0x1) {
                 opname = "FSGNJN.S";
-                F(rd) =
-                    (fsrc1 *
-                     ((fsrc2 >= 0) ? -1 : 1)); /* Copy inverted sign of fsrc2 */
+                F(rd) = (fsrc1_bits & 0x7fffffff) | (~fsrc2_bits & 0x80000000u);
             } else if (funct3 == 0x2) {
                 opname = "FSGNJX.S";
-                F(rd) =
-                    (fsrc1 * (((fsrc2 >= 0) ? 1 : 0) ^ (fsrc1 >= 0 ? 1 : 0)) ==
-                             0 ?
-                         1 :
-                         -1); /* Copy XOR of signs */
+                F(rd) = fsrc1_bits ^ (fsrc2_bits & 0x80000000u);
             }
             break;
 
@@ -447,23 +494,23 @@ static void decode(GPGPUState *s, GPGPULane *lane, uint32_t inst)
         case 0x14:
             if (funct3 == 0x0) {
                 opname = "FMIN.S";
-                F(rd) = (fsrc1 < fsrc2) ? fsrc1 : fsrc2;
+                F(rd) = float_to_uint32((fsrc1 < fsrc2) ? fsrc1 : fsrc2);
             } else if (funct3 == 0x1) {
                 opname = "FMAX.S";
-                F(rd) = (fsrc1 > fsrc2) ? fsrc1 : fsrc2;
+                F(rd) = float_to_uint32((fsrc1 > fsrc2) ? fsrc1 : fsrc2);
             }
             break;
 
         case 0x50: {
             if (funct3 == 0x2) {
                 opname = "FEQ.S";
-                F(rd) = (fsrc1 == fsrc2) ? 1.0f : 0.0f;
+                F(rd) = float_to_uint32((fsrc1 == fsrc2) ? 1.0f : 0.0f);
             } else if (funct3 == 0x1) {
                 opname = "FLT.S";
-                F(rd) = (fsrc1 < fsrc2) ? 1.0f : 0.0f;
+                F(rd) = float_to_uint32((fsrc1 < fsrc2) ? 1.0f : 0.0f);
             } else if (funct3 == 0x0) {
                 opname = "FLE.S";
-                F(rd) = (fsrc1 <= fsrc2) ? 1.0f : 0.0f;
+                F(rd) = float_to_uint32((fsrc1 <= fsrc2) ? 1.0f : 0.0f);
             }
             break;
         }
@@ -480,27 +527,95 @@ static void decode(GPGPUState *s, GPGPULane *lane, uint32_t inst)
         case 0x68:
             if (rs2 == 0x0) {
                 opname = "FCVT.S.W";
-                F(rd) = (float)(int32_t)src1;
+                F(rd) = float_to_uint32((float)(int32_t)src1);
             } else if (rs2 == 0x1) {
                 opname = "FCVT.S.WU";
-                F(rd) = (float)(uint32_t)src1;
+                F(rd) = float_to_uint32((float)(uint32_t)src1);
             }
             break;
 
         case 0x70:
             if (rs2 == 0x0 && funct3 == 0x0) {
                 opname = "FMV.X.W";
-                R(rd) = (uint32_t)fsrc1;
+                R(rd) = fsrc1_bits;
             } else if (rs2 == 0x0 && funct3 == 0x1) {
                 opname = "FMV.W.X";
-                F(rd) = (float)src1;
+                F(rd) = src1;
             }
             break;
 
         case 0x78:
             if (rs2 == 0x0 && funct3 == 0x0) {
                 opname = "FMV.W.X";
-                F(rd) = (float)src1;
+                F(rd) = src1;
+            }
+            break;
+
+        case 0x22:
+            if (rs2 == 0x0) {
+                opname = "FCVT.S.BF16"; // BF16->FP32
+                {
+                    bfloat16 bf = (bfloat16)(fsrc1_bits & 0xffffu);
+                    F(rd) = bfloat16_to_float32(bf, &lane->fp_status);
+                }
+            } else if (rs2 == 0x1) {
+                opname = "FCVT.BF16.S"; // FP32->BF16
+                {
+                    bfloat16 bf =
+                        float32_to_bfloat16(fsrc1_bits, &lane->fp_status);
+                    F(rd) = (uint32_t)bf;
+                }
+            }
+            break;
+
+        case 0x24:
+            if (rs2 == 0x0) {
+                opname = "FCVT.S.E4M3"; // E4M3 → FP32（经 BF16 中转）
+                {
+                    float8_e4m3 e = (float8_e4m3)(fsrc1_bits & 0xffu);
+                    bfloat16 bf = float8_e4m3_to_bfloat16(e, &lane->fp_status);
+                    F(rd) = bfloat16_to_float32(bf, &lane->fp_status);
+                }
+            } else if (rs2 == 0x1) {
+                opname = "FCVT.E4M3.S"; // FP32 → E4M3（饱和模式）
+                {
+                    float8_e4m3 e = float32_to_float8_e4m3(fsrc1_bits, true,
+                                                           &lane->fp_status);
+                    F(rd) = (uint32_t)e;
+                }
+            } else if (rs2 == 0x2) {
+                opname = "FCVT.S.E5M2"; // E5M2 → FP32（经 BF16 中转）
+                {
+                    float8_e5m2 e = (float8_e5m2)(fsrc1_bits & 0xffu);
+                    bfloat16 bf = float8_e5m2_to_bfloat16(e, &lane->fp_status);
+                    F(rd) = bfloat16_to_float32(bf, &lane->fp_status);
+                }
+            } else if (rs2 == 0x3) {
+                opname = "FCVT.E5M2.S"; // FP32 → E5M2（饱和模式）
+                {
+                    float8_e5m2 e = float32_to_float8_e5m2(fsrc1_bits, true,
+                                                           &lane->fp_status);
+                    F(rd) = (uint32_t)e;
+                }
+            }
+            break;
+
+        case 0x26:
+            if (rs2 == 0x0) {
+                opname =
+                    "FCVT.S.E2M1"; // E2M1 → FP32（链：E2M1→E4M3→BF16→FP32）
+                {
+                    float4_e2m1 e = (float4_e2m1)(fsrc1_bits & 0xfu);
+                    float8_e4m3 e4 =
+                        float4_e2m1_to_float8_e4m3(e, &lane->fp_status);
+                    bfloat16 bf = float8_e4m3_to_bfloat16(e4, &lane->fp_status);
+                    F(rd) = bfloat16_to_float32(bf, &lane->fp_status);
+                }
+            } else if (rs2 == 0x1) {
+                opname =
+                    "FCVT.E2M1.S"; // FP32 → E2M1（手写阈值舍入，饱和到 ±6.0）
+                F(rd) = (uint32_t)float32_to_float4_e2m1(fsrc1_bits,
+                                                         &lane->fp_status);
             }
             break;
 
@@ -511,22 +626,22 @@ static void decode(GPGPUState *s, GPGPULane *lane, uint32_t inst)
 
     case 0x43:
         opname = "FMADD.S";
-        F(rd) = fsrc1 * fsrc2 + fsrc3;
+        F(rd) = float_to_uint32(fsrc1 * fsrc2 + fsrc3);
         break;
 
     case 0x47:
         opname = "FMSUB.S";
-        F(rd) = fsrc1 * fsrc2 - fsrc3;
+        F(rd) = float_to_uint32(fsrc1 * fsrc2 - fsrc3);
         break;
 
     case 0x4b:
         opname = "FNMSUB.S";
-        F(rd) = -(fsrc1 * fsrc2) + fsrc3;
+        F(rd) = float_to_uint32(-(fsrc1 * fsrc2) + fsrc3);
         break;
 
     case 0x4f:
         opname = "FNMADD.S";
-        F(rd) = -(fsrc1 * fsrc2) - fsrc3;
+        F(rd) = float_to_uint32(-(fsrc1 * fsrc2) - fsrc3);
         break;
 
     default:
