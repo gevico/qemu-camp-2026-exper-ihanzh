@@ -19,10 +19,10 @@ const RSPI_SR_TXE: u32 = 1u32 << 1;     // Transmit buffer empty
 #[repr(C)]
 #[derive(Debug, Default)]
 pub struct G233spiRegisters {
-    pub rspi_cr1: u32,
-    pub rspi_sr: u32,
-    pub rspi_dr: u32,
-    pub rspi_cs: u32,
+    pub rspi_cr1: u32, // control register 1
+    pub rspi_sr: u32,  // status register
+    pub rspi_dr: u32,  // data register
+    pub rspi_cs: u32,  // chip select register
 }
 
 #[repr(u64)]
@@ -116,9 +116,9 @@ impl G233spiState {
     fn write(&self, offset: hwaddr, value: u64, _size: u32) {
         if let Ok(field) = RegisterOffset::try_from(offset) {
             let value = value as u32;
+            let mut regs = self.regs.borrow_mut();
             match field {
                 RegisterOffset::CR1 => {
-                    let mut regs = self.regs.borrow_mut();
                     regs.rspi_cr1 = value;
                     let enabled = (value & RSPI_CR1_SPE) != 0;
                     if enabled {
@@ -127,14 +127,11 @@ impl G233spiState {
                         regs.rspi_sr &= !(RSPI_SR_TXE | RSPI_SR_RXNE);
                     }
                 }
-                RegisterOffset::SR => {
-                    self.regs.borrow_mut().rspi_sr = value;
-                }
                 RegisterOffset::CS => {
-                    self.regs.borrow_mut().rspi_cs = value;
+                    regs.rspi_cs = value;
                 }
                 RegisterOffset::DR => {
-                    let mut regs = self.regs.borrow_mut();
+                    regs.rspi_dr = value;
                     let tx = (value & 0xff) as u8;
                     let enabled = (regs.rspi_cr1 & RSPI_CR1_SPE) != 0;
                     let master = (regs.rspi_cr1 & RSPI_CR1_MSTR) != 0;
@@ -151,6 +148,9 @@ impl G233spiState {
                     if enabled {
                         regs.rspi_sr |= RSPI_SR_TXE;
                     }
+                }
+                RegisterOffset::SR => {
+                    regs.rspi_sr = value;
                 }
             }
         } else {

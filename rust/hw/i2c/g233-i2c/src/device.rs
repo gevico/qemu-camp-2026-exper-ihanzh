@@ -136,12 +136,12 @@ impl G233i2cState {
 
             // If the controller is disabled, clear busy and ack, set done, and return.
             if (value & I2C_CTRL_EN) == 0 {
-                regs.i2c_status &= !(I2C_ST_BUSY | I2C_ST_ACK);
-                regs.i2c_status |= I2C_ST_DONE;
+                Self::set_status_bit(&mut regs.i2c_status, I2C_ST_BUSY | I2C_ST_ACK, false);
+                Self::set_status_bit(&mut regs.i2c_status, I2C_ST_DONE, true);
                 return;
             }
 
-            regs.i2c_status &= !I2C_ST_DONE;
+            Self::set_status_bit(&mut regs.i2c_status, I2C_ST_DONE, false);
             let is_recv = (value & I2C_CTRL_RW) != 0;
 
             // If START is set, begin a transfer.
@@ -150,15 +150,15 @@ impl G233i2cState {
                 let ack = bus.start_transfer(addr, is_recv) == 0;
                 Self::set_status_bit(&mut regs.i2c_status, I2C_ST_ACK, ack);
                 Self::set_status_bit(&mut regs.i2c_status, I2C_ST_BUSY, bus.is_busy());
-                regs.i2c_status |= I2C_ST_DONE;
+                Self::set_status_bit(&mut regs.i2c_status, I2C_ST_DONE, true);
                 return;
             }
 
             // If STOP is set, end the transfer and set status bits accordingly.
             if (value & I2C_CTRL_STOP) != 0 {
                 bus.end_transfer();
-                regs.i2c_status &= !(I2C_ST_BUSY | I2C_ST_ACK);
-                regs.i2c_status |= I2C_ST_DONE;
+                Self::set_status_bit(&mut regs.i2c_status, I2C_ST_BUSY | I2C_ST_ACK, false);
+                Self::set_status_bit(&mut regs.i2c_status, I2C_ST_DONE, true);
                 return;
             }
 
@@ -172,7 +172,7 @@ impl G233i2cState {
 
             Self::set_status_bit(&mut regs.i2c_status, I2C_ST_ACK, ack);
             Self::set_status_bit(&mut regs.i2c_status, I2C_ST_BUSY, bus.is_busy());
-            regs.i2c_status |= I2C_ST_DONE;
+            Self::set_status_bit(&mut regs.i2c_status, I2C_ST_DONE, true);
         } else {
             log_mask_ln!(
                 Log::GuestError,
