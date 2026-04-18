@@ -1,0 +1,30 @@
+[package]
+name = "g233-i2c"
+version = "0.1.0"
+authors = ["QEMU Rust Experiment <noreply@example.com>"]
+description = "G233 I2C device model for QEMU"
+resolver = "2"
+publish = false
+
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+glib-sys.workspace = true
+bilge = { version = "0.2.0" }
+bilge-impl = { version = "0.2.0" }
+bits = { path = "../../../bits" }
+common = { path = "../../../common" }
+util = { path = "../../../util" }
+bql = { path = "../../../bql" }
+migration = { path = "../../../migration" }
+qom = { path = "../../../qom" }
+system = { path = "../../../system" }
+hwcore = { path = "../../../hw/core" }
+trace = { path = "../../../trace" }
+
+[lints]
+workspace = true
