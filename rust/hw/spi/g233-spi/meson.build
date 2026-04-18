@@ -1,6 +1,6 @@
 _libg233_spi_rs = static_library(
   'g233_spi',
-  files('src/lib.rs', 'src/device.rs', 'src/At25Flash.rs'),
+  files('src/lib.rs', 'src/device.rs', 'src/at25flash.rs'),
   override_options: ['rust_std=2021', 'build.rust_std=2021'],
   rust_abi: 'rust',
   link_with: [

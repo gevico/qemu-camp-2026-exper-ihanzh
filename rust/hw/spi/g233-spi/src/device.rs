@@ -127,8 +127,8 @@ impl G233spiState {
                         regs.rspi_sr &= !(RSPI_SR_TXE | RSPI_SR_RXNE);
                     }
                 }
-                RegisterOffset::CS => {
-                    regs.rspi_cs = value;
+                RegisterOffset::SR => {
+                    regs.rspi_sr = value;
                 }
                 RegisterOffset::DR => {
                     regs.rspi_dr = value;
@@ -149,8 +149,8 @@ impl G233spiState {
                         regs.rspi_sr |= RSPI_SR_TXE;
                     }
                 }
-                RegisterOffset::SR => {
-                    regs.rspi_sr = value;
+                RegisterOffset::CS => {
+                    regs.rspi_cs = value;
                 }
             }
         } else {
