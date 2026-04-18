@@ -8,7 +8,7 @@ use migration::prelude::*;
 use qom::{ObjectImpl, ObjectType, Owned, ParentField, ParentInit, prelude::*};
 use system::{prelude::*, hwaddr, MemoryRegion, MemoryRegionOps, MemoryRegionOpsBuilder, SysBusDevice};
 use util::prelude::*;
-use crate::at24c02::MockEeprom;
+use crate::at24c02::At24c02;
 
 const AT24C02_ADDR: u8 = 0x50;
 
@@ -184,7 +184,7 @@ impl G233i2cState {
     fn realize(&self) -> util::Result<()> {
         let mut bus = self.i2c_bus.borrow_mut();
         if bus.device_count() == 0 {
-            bus.attach(Box::new(MockEeprom::new(AT24C02_ADDR)));
+            bus.attach(Box::new(At24c02::new(AT24C02_ADDR)));
         }
         Ok(())
     }

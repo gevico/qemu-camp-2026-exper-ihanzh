@@ -3,7 +3,7 @@ use i2c_rs::{I2CEvent, I2CSlave};
 const AT24C02_SIZE: usize = 256;
 const AT24C02_PAGE_SIZE: usize = 8;
 
-pub struct MockEeprom {
+pub struct At24c02 {
     addr: u8,
     regs: [u8; AT24C02_SIZE],
     pointer: u8,
@@ -12,7 +12,7 @@ pub struct MockEeprom {
     first_byte: bool,
 }
 
-impl MockEeprom {
+impl At24c02 {
     pub fn new(addr: u8) -> Self {
         Self {
             addr,
@@ -25,7 +25,7 @@ impl MockEeprom {
     }
 }
 
-impl I2CSlave for MockEeprom {
+impl I2CSlave for At24c02 {
     fn address(&self) -> u8 {
         self.addr
     }
