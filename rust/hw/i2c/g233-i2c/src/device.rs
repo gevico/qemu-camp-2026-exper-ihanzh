@@ -100,7 +100,7 @@ impl G233i2cState {
         MemoryRegion::init_io(
             &mut uninit_field_mut!(*this, iomem),
             &G233I2C_OPS,
-            "G233i2c_OPS-mmio",
+            "G233I2C_OPS-mmio",
             0x20,
         );
 
