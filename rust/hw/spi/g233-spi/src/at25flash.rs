@@ -3,7 +3,6 @@ const AT25_CMD_RDSR: u8 = 0x05;     // Read Status Register
 const AT25_CMD_READ: u8 = 0x03;     // Read Data
 const AT25_CMD_WRITE: u8 = 0x02;    // Write Data
 
-const AT25_SR_WIP: u8 = 1u8 << 0;   // Write In Progress
 const AT25_SR_WEL: u8 = 1u8 << 1;   // Write Enable Latch
 
 #[derive(Debug, Copy, Clone)]
@@ -20,7 +19,6 @@ pub enum At25State {
 pub struct At25flash {
     mem: [u8; 256],
     wel: bool,
-    wip: bool,
     state: At25State,
 }
 
@@ -29,7 +27,6 @@ impl Default for At25flash {
         Self {
             mem: [0xff; 256],
             wel: false,
-            wip: false,
             state: At25State::Idle,
         }
     }
@@ -37,7 +34,7 @@ impl Default for At25flash {
 
 impl At25flash {
     fn status(&self) -> u8 {
-        (if self.wip { AT25_SR_WIP } else { 0 }) | (if self.wel { AT25_SR_WEL } else { 0 })
+        if self.wel { AT25_SR_WEL } else { 0 }
     }
 
     pub fn xfer(&mut self, tx: u8) -> u8 {
