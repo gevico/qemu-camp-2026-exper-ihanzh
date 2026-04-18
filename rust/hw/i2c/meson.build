@@ -6,10 +6,12 @@ _libi2c_rs = static_library(
   dependencies: [common_rs],
 )
 
-rust_devices_ss.add(when: 'CONFIG_X_I2C_RUST', if_true: [declare_dependency(
+i2c_rs = declare_dependency(
   link_whole: [_libi2c_rs],
   variables: {'crate': 'i2c_rs'},
-)])
+)
+
+rust_devices_ss.add(when: 'CONFIG_X_I2C_RUST', if_true: [i2c_rs])
 
 test('rust-i2c-unit',
     executable(
@@ -24,3 +26,5 @@ test('rust-i2c-unit',
     ],
     protocol: 'rust',
     suite: ['unit', 'rust'])
+
+subdir('g233-i2c')

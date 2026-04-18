@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "hw/char/pl011",
+    "hw/i2c/g233-i2c",
     "hw/timer/hpet",
     "tests",
 ]
