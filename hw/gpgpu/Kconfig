@@ -9,5 +9,17 @@ config GPGPU
     default y if PCI_DEVICES
     # 依赖 PCI 总线支持和无故障的 MSI 实现
     depends on PCI && MSI_NONBROKEN
+    # 默认使用 C 实现；只有显式选择 Rust 实现时才切换
+    select GPGPU_C if !GPGPU_RUST
+    select X_GPGPU_RUST if GPGPU_RUST
     # 可选: 如果只想在测试时编译，取消上面的注释并使用:
     # default y if TEST_DEVICES
+
+config GPGPU_RUST
+    bool
+    depends on GPGPU && HAVE_RUST
+    default n
+
+config GPGPU_C
+    bool
+    depends on GPGPU

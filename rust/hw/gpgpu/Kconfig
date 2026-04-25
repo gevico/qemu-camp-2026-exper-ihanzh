@@ -1,0 +1,6 @@
+# Rust 版 GPGPU 设备的 Kconfig 配置
+# 这个文件只定义 Rust 实现的选择开关
+
+config X_GPGPU_RUST
+    bool
+    depends on GPGPU_RUST

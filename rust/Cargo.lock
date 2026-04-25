@@ -125,6 +125,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "g233-i2c"
+version = "0.1.0"
+dependencies = [
+ "bilge",
+ "bilge-impl",
+ "bits",
+ "bql",
+ "common",
+ "glib-sys",
+ "hwcore",
+ "migration",
+ "qom",
+ "system",
+ "trace",
+ "util",
+]
+
+[[package]]
+name = "g233-spi"
+version = "0.1.0"
+dependencies = [
+ "bilge",
+ "bilge-impl",
+ "bits",
+ "bql",
+ "common",
+ "glib-sys",
+ "hwcore",
+ "migration",
+ "qom",
+ "system",
+ "trace",
+ "util",
+]
+
+[[package]]
 name = "glib-sys"
 version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -132,6 +168,19 @@ checksum = "d09d3d0fddf7239521674e57b0465dfbd844632fec54f059f7f56112e3f927e1"
 dependencies = [
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "gpgpu-rs"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "hwcore",
+ "migration",
+ "qom",
+ "system",
+ "trace",
+ "util",
 ]
 
 [[package]]

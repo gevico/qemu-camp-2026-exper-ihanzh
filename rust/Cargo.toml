@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "hw/char/pl011",
+    "hw/gpgpu",
     "hw/i2c/g233-i2c",
     "hw/spi/g233-spi",
     "hw/timer/hpet",

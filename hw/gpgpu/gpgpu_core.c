@@ -9,9 +9,43 @@
 
 #include "qemu/osdep.h"
 #include "qemu/log.h"
-#include "gpgpu.h"
 #include <math.h>
+#ifndef GPGPU_CORE_USE_ACCESSORS
+#include "gpgpu.h"
+#endif
 #include "gpgpu_core.h"
+
+#ifdef GPGPU_CORE_USE_ACCESSORS
+static inline uint64_t gpgpu_core_vram_size(GPGPUState *s)
+{
+    return gpgpu_get_vram_size(s);
+}
+
+static inline uint8_t *gpgpu_core_vram_ptr(GPGPUState *s)
+{
+    return gpgpu_get_vram_ptr(s);
+}
+
+static inline GPGPUKernelParams gpgpu_core_kernel(GPGPUState *s)
+{
+    return gpgpu_get_kernel(s);
+}
+#else
+static inline uint64_t gpgpu_core_vram_size(GPGPUState *s)
+{
+    return s->vram_size;
+}
+
+static inline uint8_t *gpgpu_core_vram_ptr(GPGPUState *s)
+{
+    return s->vram_ptr;
+}
+
+static inline GPGPUKernelParams gpgpu_core_kernel(GPGPUState *s)
+{
+    return s->kernel;
+}
+#endif
 
 /* TODO: Implement warp initialization */
 void gpgpu_core_init_warp(GPGPUWarp *warp, uint32_t pc, uint32_t thread_id_base,
@@ -52,8 +86,12 @@ void gpgpu_core_init_warp(GPGPUWarp *warp, uint32_t pc, uint32_t thread_id_base,
 
 static inline uint32_t vmem_read(GPGPUState *s, uint32_t addr, int size)
 {
-    g_assert(addr + size <= s->vram_size);
-    const uint8_t *ptr = s->vram_ptr + addr;
+    uint64_t vram_size = gpgpu_core_vram_size(s);
+    const uint8_t *vram_ptr = gpgpu_core_vram_ptr(s);
+
+    g_assert(vram_ptr != NULL);
+    g_assert((uint64_t)addr + size <= vram_size);
+    const uint8_t *ptr = vram_ptr + addr;
     switch (size) {
     case 1:
         return ptr[0];
@@ -69,8 +107,12 @@ static inline uint32_t vmem_read(GPGPUState *s, uint32_t addr, int size)
 static inline void vmem_write(GPGPUState *s, uint32_t addr, int size,
                               uint32_t value)
 {
-    g_assert(addr + size <= s->vram_size);
-    uint8_t *ptr = s->vram_ptr + addr;
+    uint64_t vram_size = gpgpu_core_vram_size(s);
+    uint8_t *vram_ptr = gpgpu_core_vram_ptr(s);
+
+    g_assert(vram_ptr != NULL);
+    g_assert((uint64_t)addr + size <= vram_size);
+    uint8_t *ptr = vram_ptr + addr;
     switch (size) {
     case 1:
         ptr[0] = value & 0xff;
@@ -687,8 +729,9 @@ int gpgpu_core_exec_warp(GPGPUState *s, GPGPUWarp *warp, uint32_t max_cycles)
 
 int gpgpu_core_exec_kernel(GPGPUState *s)
 {
-    uint64_t num_threads = (uint64_t)s->kernel.block_dim[0] *
-                           s->kernel.block_dim[1] * s->kernel.block_dim[2];
+    GPGPUKernelParams kernel = gpgpu_core_kernel(s);
+    uint64_t num_threads = (uint64_t)kernel.block_dim[0] *
+                           kernel.block_dim[1] * kernel.block_dim[2];
     if (num_threads == 0) {
         return 0;
     }
@@ -697,7 +740,7 @@ int gpgpu_core_exec_kernel(GPGPUState *s)
     }
 
     GPGPUWarp *warp = g_malloc0(sizeof(GPGPUWarp));
-    gpgpu_core_init_warp(warp, s->kernel.kernel_addr, 0, s->kernel.block_dim,
+    gpgpu_core_init_warp(warp, kernel.kernel_addr, 0, kernel.block_dim,
                          num_threads, 0, 0);
     int ret = gpgpu_core_exec_warp(s, warp, 1000000);
     g_free(warp);

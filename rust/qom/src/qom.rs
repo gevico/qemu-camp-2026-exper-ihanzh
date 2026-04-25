@@ -381,7 +381,7 @@ impl<T> DerefMut for ParentInit<'_, T> {
     }
 }
 
-unsafe extern "C" fn rust_instance_init<T: ObjectImpl>(obj: *mut bindings::Object) {
+pub unsafe extern "C" fn rust_instance_init<T: ObjectImpl>(obj: *mut bindings::Object) {
     let mut state = NonNull::new(obj).unwrap().cast::<MaybeUninit<T>>();
 
     // SAFETY: obj is an instance of T, since rust_instance_init<T>
@@ -402,7 +402,7 @@ unsafe extern "C" fn rust_instance_post_init<T: ObjectImpl>(obj: *mut bindings::
     T::INSTANCE_POST_INIT.unwrap()(unsafe { state.as_ref() });
 }
 
-unsafe extern "C" fn rust_class_init<T: ObjectType + ObjectImpl>(
+pub unsafe extern "C" fn rust_class_init<T: ObjectType + ObjectImpl>(
     klass: *mut ObjectClass,
     _data: *const c_void,
 ) {
@@ -415,7 +415,7 @@ unsafe extern "C" fn rust_class_init<T: ObjectType + ObjectImpl>(
     <T as ObjectImpl>::CLASS_INIT(unsafe { klass.as_mut() })
 }
 
-unsafe extern "C" fn drop_object<T: ObjectImpl>(obj: *mut bindings::Object) {
+pub unsafe extern "C" fn drop_object<T: ObjectImpl>(obj: *mut bindings::Object) {
     // SAFETY: obj is an instance of T, since drop_object<T> is called
     // from the QOM core function object_deinit() as the instance_finalize
     // function for class T.  Note that while object_deinit() will drop the

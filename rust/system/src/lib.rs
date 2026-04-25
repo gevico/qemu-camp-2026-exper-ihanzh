@@ -5,6 +5,9 @@ pub use system_sys as bindings;
 mod memory;
 pub use memory::*;
 
+mod pci;
+pub use pci::*;
+
 // preserve one-item-per-"use" syntax, it is clearer
 // for prelude-like modules
 #[rustfmt::skip]
