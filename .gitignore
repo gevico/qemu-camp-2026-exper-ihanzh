@@ -1,5 +1,10 @@
 /GNUmakefile
 /build/
+.codex
+gpgpu_driver/build/
+gpgpu_driver/.vscode/
+gpgpu_driver/.cache/
+gpgpu_driver/compile_commands.json
 /.cache/
 /.vscode/
 *.pyc
