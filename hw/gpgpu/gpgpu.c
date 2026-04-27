@@ -108,6 +108,9 @@ static void gpgpu_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
     case GPGPU_REG_IRQ_ENABLE:
         s->irq_enable = val & 0xffff;
         break;
+    case GPGPU_REG_IRQ_ACK:
+        s->irq_status &= ~(val & 0xffff);
+        break;
     case GPGPU_REG_GRID_DIM_X:
         s->kernel.grid_dim[0] = val;
         break;
@@ -136,8 +139,7 @@ static void gpgpu_ctrl_write(void *opaque, hwaddr addr, uint64_t val,
         break;
     case GPGPU_REG_DISPATCH:
         s->global_status &= ~GPGPU_STATUS_READY; /* 设备变为忙碌状态 */
-        gpgpu_core_exec_kernel(s);
-        s->global_status |= GPGPU_STATUS_READY; /* 执行完成，设备变为就绪状态 */
+        timer_mod(s->kernel_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 1);
         break;
     case GPGPU_REG_DMA_SRC_LO:
         s->dma.src_addr =
@@ -295,10 +297,22 @@ static void gpgpu_dma_complete(void *opaque)
     (void)opaque;
 }
 
-/* TODO: Implement kernel completion handler */
 static void gpgpu_kernel_complete(void *opaque)
 {
-    (void)opaque;
+    GPGPUState *s = (GPGPUState *)opaque;
+
+    gpgpu_core_exec_kernel(s);
+
+    s->global_status |= GPGPU_STATUS_READY;
+    s->irq_status |= GPGPU_IRQ_KERNEL_DONE;
+    if (s->irq_enable & GPGPU_IRQ_KERNEL_DONE) {
+        if (msix_enabled(PCI_DEVICE(s))) {
+            msix_notify(PCI_DEVICE(s), 0);
+        } else {
+            msi_notify(PCI_DEVICE(s), 0);
+        }
+    }
+
 }
 
 static void gpgpu_realize(PCIDevice *pdev, Error **errp)
@@ -339,6 +353,10 @@ static void gpgpu_realize(PCIDevice *pdev, Error **errp)
                   &s->ctrl_mmio, 0, 0xFF000, 0, errp)) {
         g_free(s->vram_ptr);
         return;
+    }
+
+    for (int i = 0; i < GPGPU_MSIX_VECTORS; i++) {
+        msix_vector_use(pdev, i);
     }
 
     msi_init(pdev, 0, 1, true, false, errp);
